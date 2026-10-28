@@ -12,8 +12,12 @@ const matches = [
 // Use the same team names in cards, fixtures and roster dialogs.
 for (const match of matches) {
   if (match.group === 'final') continue;
-  match.home = rosterTeams.find(team => team.id === match.homeBadge).name;
-  match.away = rosterTeams.find(team => team.id === match.awayBadge).name;
+  const home = rosterTeams.find(team => team.id === match.homeBadge);
+  const away = rosterTeams.find(team => team.id === match.awayBadge);
+  match.home = home.name;
+  match.away = away.name;
+  match.homeColor = home.color;
+  match.awayColor = away.color;
 }
 
 function renderMatches(filter = 'all') {
@@ -71,7 +75,8 @@ const escapeText = value => String(value).replace(/[&<>"']/g, character => ({
 document.querySelectorAll('.group .team').forEach((card, index) => {
   const team = rosterTeams[index];
   card.querySelector('h4').textContent = team.name;
-  card.querySelector('p').textContent = `${team.players.length} cầu thủ`;
+  card.querySelector('p').textContent = `${team.players.length} cầu thủ · ${team.kitColor}`;
+  card.querySelector('.crest').className = `crest crest-${team.color}`;
   const button = document.createElement('button');
   button.className = 'roster-button';
   button.textContent = 'Xem danh sách ↗';
@@ -82,7 +87,7 @@ document.querySelectorAll('.group .team').forEach((card, index) => {
   button.addEventListener('click', () => {
     rosterTrigger = button;
     document.querySelector('#roster-title').textContent = team.name;
-    document.querySelector('#roster-summary').textContent = `${team.players.length} cầu thủ · Bảng ${team.id[0]} (tạm thời)`;
+    document.querySelector('#roster-summary').textContent = `${team.players.length} cầu thủ · Áo ${team.kitColor.toLowerCase()} · Bảng ${team.id[0]} (tạm thời)`;
     document.querySelector('#roster-players').innerHTML = team.players.map(([name, position, tier], playerIndex) =>
       `<tr><td>${String(playerIndex + 1).padStart(2, '0')}</td><th scope="row">${escapeText(name)}</th><td>${escapeText(position)}</td><td><span class="roster-tier">${escapeText(tier || '—')}</span></td></tr>`
     ).join('');
@@ -103,4 +108,22 @@ rosterModal.addEventListener('click', event => {
 rosterModal.addEventListener('close', () => {
   document.body.classList.remove('modal-open');
   rosterTrigger?.focus({ preventScroll: true });
+});
+const rulesModal = document.querySelector('#rules-modal');
+const rulesTrigger = document.querySelector('.rules-open');
+rulesTrigger.addEventListener('click', () => {
+  rulesModal.showModal();
+  document.body.classList.add('modal-open');
+  rulesModal.querySelector('.rules-content').scrollTop = 0;
+});
+rulesModal.querySelectorAll('.roster-close, .roster-done').forEach(button => {
+  button.addEventListener('click', () => rulesModal.close());
+});
+rulesModal.addEventListener('click', event => {
+  const bounds = rulesModal.getBoundingClientRect();
+  if (event.target === rulesModal && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) rulesModal.close();
+});
+rulesModal.addEventListener('close', () => {
+  document.body.classList.remove('modal-open');
+  rulesTrigger.focus({ preventScroll: true });
 });
