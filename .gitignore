@@ -1,0 +1,9 @@
+.work/
+node_modules/
+__pycache__/
+*.pyc
+*.xlsx
+*.xls
+*.inspect.ndjson
+desktop-preview.png
+mobile-preview.png
