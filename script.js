@@ -127,3 +127,112 @@ rulesModal.addEventListener('close', () => {
   document.body.classList.remove('modal-open');
   rulesTrigger.focus({ preventScroll: true });
 });
+const sponsorTrack = document.querySelector('#sponsor-track');
+const sponsorCarousel = document.querySelector('.sponsor-carousel');
+const sponsorViewport = document.createElement('div');
+sponsorViewport.className = 'sponsor-viewport';
+sponsorTrack.before(sponsorViewport);
+sponsorViewport.append(sponsorTrack);
+const sponsorSlides = [...sponsorTrack.children];
+const sponsorTotal = sponsorSlides.length;
+// Full sets at both ends allow seamless wrapping with multiple visible logos.
+for (const position of ['before', 'after']) {
+  const fragment = document.createDocumentFragment();
+  sponsorSlides.forEach(slide => {
+    const clone = slide.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    clone.inert = true;
+    fragment.append(clone);
+  });
+  if (position === 'before') sponsorTrack.prepend(fragment);
+  else sponsorTrack.append(fragment);
+}
+let sponsorIndex = sponsorTotal;
+let sponsorBusy = false;
+let sponsorPointer = null;
+let sponsorTimer;
+let sponsorFinishTimer;
+let sponsorHover = false;
+let sponsorFocus = false;
+let sponsorVisible = false;
+const sponsorMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let sponsorPaused = sponsorMotion.matches;
+const sponsorPlay = document.querySelector('.sponsor-play');
+function sponsorStep() {
+  return sponsorSlides[0].getBoundingClientRect().width + parseFloat(getComputedStyle(sponsorTrack).gap);
+}
+function positionSponsors(animate = false, offset = 0) {
+  sponsorTrack.style.transition = animate && !sponsorMotion.matches ? 'transform 450ms ease' : 'none';
+  sponsorTrack.style.transform = `translate3d(${-sponsorIndex * sponsorStep() + offset}px,0,0)`;
+}
+function finishSponsorMove() {
+  clearTimeout(sponsorFinishTimer);
+  sponsorIndex = sponsorTotal + ((sponsorIndex - sponsorTotal) % sponsorTotal + sponsorTotal) % sponsorTotal;
+  positionSponsors();
+  sponsorBusy = false;
+}
+function moveSponsors(direction) {
+  if (sponsorBusy) return;
+  sponsorBusy = true;
+  sponsorIndex += direction;
+  positionSponsors(true);
+  sponsorFinishTimer = setTimeout(finishSponsorMove, sponsorMotion.matches ? 0 : 480);
+}
+sponsorTrack.addEventListener('transitionend', event => {
+  if (event.target === sponsorTrack && event.propertyName === 'transform') finishSponsorMove();
+});
+function scheduleSponsors() {
+  clearInterval(sponsorTimer);
+  if (!sponsorPaused && !sponsorHover && !sponsorFocus && sponsorPointer === null && sponsorVisible && !document.hidden) {
+    sponsorTimer = setInterval(() => moveSponsors(1), 3000);
+  }
+}
+function updateSponsorPlay() {
+  sponsorPlay.textContent = sponsorPaused ? '▶' : 'Ⅱ';
+  sponsorPlay.setAttribute('aria-label', sponsorPaused ? 'Bật tự chạy' : 'Tạm dừng tự chạy');
+  sponsorPlay.setAttribute('aria-pressed', String(sponsorPaused));
+  scheduleSponsors();
+}
+sponsorPlay.addEventListener('click', () => { sponsorPaused = !sponsorPaused; updateSponsorPlay(); });
+for (const [selector, direction] of [['.sponsor-prev', -1], ['.sponsor-next', 1]]) {
+  document.querySelector(selector).addEventListener('click', () => { moveSponsors(direction); scheduleSponsors(); });
+}
+sponsorTrack.addEventListener('keydown', event => {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault();
+    moveSponsors(event.key === 'ArrowRight' ? 1 : -1);
+  }
+});
+sponsorViewport.addEventListener('pointerdown', event => {
+  if (!event.isPrimary || event.button !== 0 || sponsorBusy) return;
+  sponsorPointer = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0 };
+  sponsorViewport.setPointerCapture(event.pointerId);
+  scheduleSponsors();
+});
+sponsorViewport.addEventListener('pointermove', event => {
+  if (!sponsorPointer || event.pointerId !== sponsorPointer.id) return;
+  sponsorPointer.dx = event.clientX - sponsorPointer.x;
+  if (Math.abs(sponsorPointer.dx) > Math.abs(event.clientY - sponsorPointer.y)) positionSponsors(false, sponsorPointer.dx);
+});
+function endSponsorSwipe(event) {
+  if (!sponsorPointer || event.pointerId !== sponsorPointer.id) return;
+  const { dx, y } = sponsorPointer;
+  sponsorPointer = null;
+  if (sponsorViewport.hasPointerCapture(event.pointerId)) sponsorViewport.releasePointerCapture(event.pointerId);
+  if (event.type === 'pointerup' && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(event.clientY - y)) moveSponsors(dx < 0 ? 1 : -1);
+  else positionSponsors(true);
+  scheduleSponsors();
+}
+sponsorViewport.addEventListener('pointerup', endSponsorSwipe);
+sponsorViewport.addEventListener('pointercancel', endSponsorSwipe);
+sponsorTrack.addEventListener('dragstart', event => event.preventDefault());
+sponsorCarousel.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') { sponsorHover = true; scheduleSponsors(); } });
+sponsorCarousel.addEventListener('pointerleave', () => { sponsorHover = false; scheduleSponsors(); });
+sponsorCarousel.addEventListener('focusin', () => { sponsorFocus = true; scheduleSponsors(); });
+sponsorCarousel.addEventListener('focusout', event => { sponsorFocus = sponsorCarousel.contains(event.relatedTarget); scheduleSponsors(); });
+document.addEventListener('visibilitychange', scheduleSponsors);
+sponsorMotion.addEventListener('change', () => { sponsorPaused = sponsorMotion.matches; updateSponsorPlay(); });
+new IntersectionObserver(entries => { sponsorVisible = entries[0].isIntersecting; scheduleSponsors(); }, { threshold: 0.1 }).observe(sponsorViewport);
+new ResizeObserver(() => { finishSponsorMove(); }).observe(sponsorViewport);
+positionSponsors();
+updateSponsorPlay();
